@@ -7,7 +7,7 @@ import os
 import json
 import logging
 from typing import Dict, Any, Optional
-from friendli import FriendliClient
+from friendli import AsyncFriendli
 from utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -16,7 +16,7 @@ class FriendliClientWrapper:
     """Wrapper for Friendli AI client with enhanced functionality"""
     
     def __init__(self):
-        self.client: Optional[FriendliClient] = None
+        self.client: Optional[AsyncFriendli] = None
         self.api_key = os.getenv("FRIENDLI_API_KEY")
         self.model_name = os.getenv("FRIENDLI_MODEL_NAME", "llama-2-70b-chat")
         
@@ -28,7 +28,7 @@ class FriendliClientWrapper:
             
             logger.info(f"🧠 Initializing Friendli AI client with model: {self.model_name}")
             
-            self.client = FriendliClient(
+            self.client = AsyncFriendli(
                 api_key=self.api_key
             )
             

@@ -4,15 +4,19 @@ import { Toaster } from 'react-hot-toast';
 import GraphView from './components/GraphView';
 import AgentConsole from './components/AgentConsole';
 import SearchBar from './components/SearchBar';
+import SearchResults from './components/SearchResults';
 import Header from './components/Header';
 import StatsPanel from './components/StatsPanel';
 import ParticleBackground from './components/ParticleBackground';
+import AIInsights from './components/AIInsights';
 import { ContextCloudProvider } from './context/ContextCloudContext';
 
 function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [currentQuery, setCurrentQuery] = useState('');
   const [agentStatus, setAgentStatus] = useState({});
+  const [visibleNodes, setVisibleNodes] = useState([]);
+  const [relevantNodeIds, setRelevantNodeIds] = useState(null);
 
   return (
     <ContextCloudProvider>
@@ -47,13 +51,21 @@ function App() {
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.5, delay: 0.1 }}
                 >
-                  <StatsPanel />
+                  <SearchResults />
                 </motion.div>
                 
                 <motion.div
                   initial={{ opacity: 0, x: -50 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.5, delay: 0.2 }}
+                >
+                  <StatsPanel />
+                </motion.div>
+                
+                <motion.div
+                  initial={{ opacity: 0, x: -50 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.5, delay: 0.3 }}
                 >
                   <AgentConsole 
                     currentQuery={currentQuery}
@@ -63,8 +75,8 @@ function App() {
                 </motion.div>
               </div>
               
-              {/* Right Panel - Graph Visualization */}
-              <div className="lg:col-span-2">
+              {/* Right Panel - Graph Visualization and AI Insights */}
+              <div className="lg:col-span-2 space-y-6">
                 <motion.div
                   initial={{ opacity: 0, x: 50 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -72,8 +84,22 @@ function App() {
                   className="h-[600px] lg:h-[700px]"
                 >
                   <GraphView 
-                    currentQuery={currentQuery}
+                     currentQuery={currentQuery}
+                     isLoading={isLoading}
+                     onVisibleNodesChange={setVisibleNodes}
+                     relevantNodeIds={relevantNodeIds}
+                   />
+                </motion.div>
+                <motion.div
+                  initial={{ opacity: 0, x: 50 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.5, delay: 0.4 }}
+                >
+                  <AIInsights 
+                    currentQuery={currentQuery} 
+                    visibleNodes={visibleNodes} 
                     isLoading={isLoading}
+                    onRelevantNodesChange={setRelevantNodeIds}
                   />
                 </motion.div>
               </div>

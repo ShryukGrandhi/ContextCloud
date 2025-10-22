@@ -17,6 +17,7 @@ import uvicorn
 from agents.orchestrator import AgentOrchestrator
 from services.weaviate_client import WeaviateClient
 from services.friendli_client import FriendliClient
+from services.gemini_client import GeminiClient
 from tools.aws_tools import AWSTools
 from utils.logger import setup_logger
 
@@ -29,13 +30,14 @@ logger = setup_logger(__name__)
 # Global clients
 weaviate_client = None
 friendli_client = None
+gemini_client = None
 aws_tools = None
 agent_orchestrator = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize and cleanup resources"""
-    global weaviate_client, friendli_client, aws_tools, agent_orchestrator
+    global weaviate_client, friendli_client, gemini_client, aws_tools, agent_orchestrator
     
     logger.info("🚀 Starting ContextCloud Agents...")
     
@@ -46,8 +48,12 @@ async def lifespan(app: FastAPI):
         
         friendli_client = FriendliClient()
         
-        aws_tools = AWSTools()
-        await aws_tools.initialize()
+        gemini_client = GeminiClient()
+        await gemini_client.initialize()
+        
+        # aws_tools = AWSTools()
+        # await aws_tools.initialize()
+        aws_tools = None  # Temporarily disabled for testing
         
         # Initialize agent orchestrator
         agent_orchestrator = AgentOrchestrator(
@@ -100,6 +106,7 @@ async def health_check():
     try:
         weaviate_status = await weaviate_client.health_check() if weaviate_client else "not_initialized"
         friendli_status = await friendli_client.health_check() if friendli_client else "not_initialized"
+        gemini_status = await gemini_client.health_check() if gemini_client else "not_initialized"
         aws_status = await aws_tools.health_check() if aws_tools else "not_initialized"
         
         return {
@@ -107,6 +114,7 @@ async def health_check():
             "services": {
                 "weaviate": weaviate_status,
                 "friendli": friendli_status,
+                "gemini": gemini_status,
                 "aws": aws_status
             },
             "agents_ready": agent_orchestrator is not None
@@ -223,16 +231,127 @@ async def get_knowledge_graph():
         # Get graph data from Weaviate
         graph_data = await weaviate_client.get_knowledge_graph()
         
+        # Transform nodes to match frontend expectations
+        transformed_nodes = []
+        for node in graph_data.get("nodes", []):
+            transformed_node = {
+                "id": node.get("id"),
+                "name": node.get("label", node.get("name", "Unknown")),  # Use label as name
+                "type": node.get("type", "unknown"),
+                "size": 15 if node.get("type") == "department" else 12 if node.get("type") == "entity" else 10,
+                "color": node.get("color", "#888888"),
+                "summary": node.get("summary", ""),
+                "key_terms": node.get("key_terms", []),
+                "content_preview": node.get("content_preview", "")
+            }
+            transformed_nodes.append(transformed_node)
+        
+        # Transform edges to match frontend expectations (source/target instead of source/target)
+        transformed_edges = []
+        for edge in graph_data.get("edges", []):
+            transformed_edge = {
+                "source": edge.get("source"),
+                "target": edge.get("target"),
+                "type": edge.get("label", "related"),
+                "strength": 0.7  # Default strength
+            }
+            transformed_edges.append(transformed_edge)
+        
+        transformed_graph = {
+            "nodes": transformed_nodes,
+            "links": transformed_edges  # Frontend expects "links" not "edges"
+        }
+        
         return {
             "message": "Knowledge graph retrieved",
-            "graph": graph_data,
-            "node_count": len(graph_data.get("nodes", [])),
-            "edge_count": len(graph_data.get("edges", []))
+            "graph": transformed_graph,
+            "node_count": len(transformed_nodes),
+            "edge_count": len(transformed_edges)
         }
         
     except Exception as e:
         logger.error(f"❌ Graph retrieval failed: {e}")
         raise HTTPException(status_code=500, detail=f"Graph retrieval failed: {str(e)}")
+
+@app.post("/search/gemini")
+async def search_with_gemini(query: dict):
+    """Search knowledge graph using Gemini AI"""
+    try:
+        if not gemini_client:
+            raise HTTPException(status_code=503, detail="Gemini client not initialized")
+        
+        if not weaviate_client:
+            raise HTTPException(status_code=503, detail="Weaviate client not initialized")
+        
+        user_query = query.get("query", "").strip()
+        if not user_query:
+            raise HTTPException(status_code=400, detail="Query is required")
+        
+        logger.info(f"🔍 Gemini search query: {user_query}")
+        
+        # Get the knowledge graph
+        graph_data = await weaviate_client.get_knowledge_graph()
+        
+        # Use Gemini to find relevant nodes
+        search_result = await gemini_client.find_relevant_nodes(user_query, graph_data["nodes"])
+        relevant_nodes = search_result.get("relevant_nodes", [])
+        
+        # Generate summary
+        summary = await gemini_client.generate_summary(user_query, relevant_nodes)
+        
+        return {
+            "message": "Gemini search completed",
+            "query": user_query,
+            "relevant_nodes": relevant_nodes,
+            "summary": summary,
+            "analysis_summary": search_result.get("analysis_summary", ""),
+            "total_nodes_searched": len(graph_data["nodes"]),
+            "relevant_nodes_found": len(relevant_nodes)
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Gemini search failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Gemini search failed: {str(e)}")
+
+@app.post("/insights/generate")
+async def generate_ai_insights(request: dict):
+    """Generate AI insights based on current query and knowledge graph data"""
+    try:
+        if not gemini_client:
+            raise HTTPException(status_code=503, detail="Gemini client not initialized")
+        
+        if not weaviate_client:
+            raise HTTPException(status_code=503, detail="Weaviate client not initialized")
+        
+        user_query = request.get("query", "").strip()
+        visible_nodes = request.get("visible_nodes", [])
+        
+        logger.info(f"🧠 Generating AI insights for query: {user_query}")
+        
+        # Get the full knowledge graph
+        graph_data = await weaviate_client.get_knowledge_graph()
+        
+        # Generate comprehensive insights using Gemini
+        insights = await gemini_client.generate_insights(
+            query=user_query,
+            visible_nodes=visible_nodes,
+            full_graph=graph_data
+        )
+        
+        return {
+            "message": "AI insights generated successfully",
+            "query": user_query,
+            "insights": insights,
+            "analysis_scope": {
+                "visible_nodes": len(visible_nodes),
+                "total_nodes": len(graph_data.get("nodes", [])),
+                "total_edges": len(graph_data.get("edges", []))
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ AI insights generation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"AI insights generation failed: {str(e)}")
 
 @app.get("/agents/status")
 async def get_agent_status():

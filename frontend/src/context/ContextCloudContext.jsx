@@ -18,9 +18,10 @@ export const ContextCloudProvider = ({ children }) => {
   const [agentStatus, setAgentStatus] = useState({});
   const [knowledgeGraph, setKnowledgeGraph] = useState(null);
   const [recentResults, setRecentResults] = useState([]);
+  const [searchResults, setSearchResults] = useState(null);
 
   // API base URL
-  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+  const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8001';
 
   const api = axios.create({
     baseURL: API_BASE_URL,
@@ -107,6 +108,43 @@ export const ContextCloudProvider = ({ children }) => {
     }
   }, [api]);
 
+  // Search with Gemini AI
+  const searchWithGemini = useCallback(async (query, retryCount = 0) => {
+    setIsLoading(true);
+    setCurrentQuery(query);
+    
+    try {
+      const response = await api.post('/search/gemini', { query });
+      const result = response.data;
+      
+      // Update search results
+      setSearchResults(result);
+      
+      // Add to recent results
+      setRecentResults(prev => [result, ...prev.slice(0, 9)]);
+      
+      return result;
+    } catch (error) {
+      console.error('Gemini search failed:', error);
+      
+      // Retry logic for initial timing issues
+      if (retryCount < 2 && (
+        error.response?.status === 503 || 
+        error.response?.status === 500 ||
+        error.message.includes('Failed to search with Gemini AI')
+      )) {
+        console.log(`Retrying Gemini search (attempt ${retryCount + 1}/2)...`);
+        // Wait a bit before retrying
+        await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+        return searchWithGemini(query, retryCount + 1);
+      }
+      
+      throw new Error(error.response?.data?.detail || 'Failed to search with Gemini AI');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [api]);
+
   // Get agent status
   const getAgentStatus = useCallback(async () => {
     try {
@@ -117,6 +155,33 @@ export const ContextCloudProvider = ({ children }) => {
     } catch (error) {
       console.error('Failed to get agent status:', error);
       throw new Error(error.response?.data?.detail || 'Failed to get agent status');
+    }
+  }, [api]);
+
+  // Generate AI insights
+  const generateAIInsights = useCallback(async (query, visibleNodes = [], retryCount = 0) => {
+    try {
+      const response = await api.post('/insights/generate', {
+        query,
+        visible_nodes: visibleNodes
+      });
+      return response.data;
+    } catch (error) {
+      console.error('AI insights generation failed:', error);
+      
+      // Retry logic for initial timing issues
+      if (retryCount < 2 && (
+        error.response?.status === 503 || 
+        error.response?.status === 500 ||
+        error.message.includes('Failed to generate insights')
+      )) {
+        console.log(`Retrying AI insights generation (attempt ${retryCount + 1}/2)...`);
+        // Wait a bit before retrying
+        await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+        return generateAIInsights(query, visibleNodes, retryCount + 1);
+      }
+      
+      throw new Error(error.response?.data?.detail || 'Failed to generate AI insights');
     }
   }, [api]);
 
@@ -148,18 +213,22 @@ export const ContextCloudProvider = ({ children }) => {
     agentStatus,
     knowledgeGraph,
     recentResults,
+    searchResults,
     
     // Actions
     runAgents,
     uploadDocument,
     getKnowledgeGraph,
     askFriendli,
+    searchWithGemini,
+    generateAIInsights,
     getAgentStatus,
     healthCheck,
     clearRecentResults,
     clearKnowledgeGraph,
     setCurrentQuery,
     setAgentStatus,
+    setSearchResults,
   };
 
   return (

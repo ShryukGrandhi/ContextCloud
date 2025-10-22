@@ -6,7 +6,7 @@ import { useContextCloud } from '../context/ContextCloudContext';
 
 const SearchBar = ({ onSearch, isLoading, setIsLoading }) => {
   const [query, setQuery] = useState('');
-  const { runAgents, uploadDocument } = useContextCloud();
+  const { runAgents, uploadDocument, searchWithGemini } = useContextCloud();
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -16,10 +16,10 @@ const SearchBar = ({ onSearch, isLoading, setIsLoading }) => {
     onSearch(query);
 
     try {
-      const result = await runAgents(query);
-      toast.success('Agents completed analysis successfully!');
+      const result = await searchWithGemini(query);
+      toast.success('Gemini search completed successfully!');
     } catch (error) {
-      toast.error('Failed to run agents: ' + error.message);
+      toast.error('Failed to search with Gemini: ' + error.message);
     } finally {
       setIsLoading(false);
     }
