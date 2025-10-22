@@ -1,0 +1,249 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "ContextCloud Agents API",
+    "description": "Multi-agent enterprise knowledge platform for AWS AI Agents Hack Day",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://{api-id}.execute-api.{region}.amazonaws.com/{stage}",
+      "description": "AWS API Gateway"
+    }
+  ],
+  "paths": {
+    "/upload": {
+      "post": {
+        "summary": "Upload and process documents",
+        "description": "Upload documents to S3, extract text with Textract, and extract entities with Comprehend",
+        "operationId": "uploadDocument",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "document_type": {
+                    "type": "string",
+                    "default": "general"
+                  },
+                  "metadata": {
+                    "type": "string",
+                    "default": "{}"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Document uploaded and processed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {"type": "string"},
+                    "document_id": {"type": "string"},
+                    "s3_uri": {"type": "string"},
+                    "entities_found": {"type": "integer"},
+                    "filename": {"type": "string"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/run": {
+      "post": {
+        "summary": "Run multi-agent workflow",
+        "description": "Trigger the complete multi-agent orchestration workflow",
+        "operationId": "runAgents",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "description": "User query to process"
+                  }
+                },
+                "required": ["query"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Agents completed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {"type": "string"},
+                    "query": {"type": "string"},
+                    "result": {"type": "object"},
+                    "agents_executed": {
+                      "type": "array",
+                      "items": {"type": "string"}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ask": {
+      "post": {
+        "summary": "Query Friendli AI directly",
+        "description": "Send a direct query to Friendli AI for reasoning",
+        "operationId": "askFriendli",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "description": "Query to send to Friendli AI"
+                  }
+                },
+                "required": ["query"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Friendli AI response generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {"type": "string"},
+                    "query": {"type": "string"},
+                    "response": {"type": "string"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/graph": {
+      "get": {
+        "summary": "Get knowledge graph data",
+        "description": "Retrieve the knowledge graph for frontend visualization",
+        "operationId": "getKnowledgeGraph",
+        "responses": {
+          "200": {
+            "description": "Knowledge graph retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {"type": "string"},
+                    "graph": {
+                      "type": "object",
+                      "properties": {
+                        "nodes": {
+                          "type": "array",
+                          "items": {"type": "object"}
+                        },
+                        "edges": {
+                          "type": "array",
+                          "items": {"type": "object"}
+                        }
+                      }
+                    },
+                    "node_count": {"type": "integer"},
+                    "edge_count": {"type": "integer"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agents/status": {
+      "get": {
+        "summary": "Get agent status",
+        "description": "Get current status of all agents",
+        "operationId": "getAgentStatus",
+        "responses": {
+          "200": {
+            "description": "Agent status retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {"type": "string"},
+                    "agents": {"type": "object"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Health check",
+        "description": "Check the health of the system and all services",
+        "operationId": "healthCheck",
+        "responses": {
+          "200": {
+            "description": "System is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {"type": "string"},
+                    "services": {"type": "object"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key"
+      }
+    }
+  },
+  "security": [
+    {
+      "ApiKeyAuth": []
+    }
+  ]
+}
